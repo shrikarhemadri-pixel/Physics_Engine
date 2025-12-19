@@ -22,6 +22,7 @@ p12 = Particle(10, [0, -1], [0, 0], -1e-7)
 p13 = Particle(10, [-1, 0], [0, 0], -1e-7)
 p14 = Particle(10, [-10, 0], [1, 0], 1)
 p15 = Particle(10, [10, 0], [-1, 0])
+p16 = Particle(10, [0, 10], [0, -1], 1)
 
 
 Simulate(3000, [p1,p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15])
@@ -142,6 +143,11 @@ def update(frame):
     data15 = np.stack([x15, y15]).T
     scat15.set_offsets(data15)
 
+    x16 = part_dictionary_x[15][frame]
+    y16 = part_dictionary_y[15][frame]
+
+    data16 = np.stack([x16, y16]).T
+    scat16.set_offsets(data16)
 
     return scat, scat2, scat3, scat4, scat5, scat6, scat7, scat8, scat9, scat10, scat11, scat12, scat13, scat14, scat15
 
