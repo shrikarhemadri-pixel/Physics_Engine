@@ -1,4 +1,4 @@
-from class_method import *
+from simulator_particle_core import *
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -6,10 +6,8 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.animation import PillowWriter
 
 
-fig, ax = plt.subplots()
-
-ax.set_facecolor('black')
-fig.set_facecolor('black')
+#Attempting to simulate the moons orbit around the earth- using accurate masses and distances
+#constants are in the simulator_particle_core file
 earth = Particle(earth_mass, [0, 0], [0, 0])
 moon = Particle(moon_mass, [3.84e8, 0], [0, 1.022e3])
 
@@ -18,7 +16,10 @@ moon = Particle(moon_mass, [3.84e8, 0], [0, 1.022e3])
 Simulate(100000, [earth, moon])
 
 
+fig, ax = plt.subplots()
 
+ax.set_facecolor('black')
+fig.set_facecolor('black')
 
 scat = ax.scatter(part_dictionary_x[0][0], part_dictionary_y[0][0], c='b', s=20, label='earth')
 scat2 = ax.scatter(part_dictionary_x[1][0], part_dictionary_y[1][0], c='gray', s=20, label='moon')

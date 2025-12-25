@@ -3,16 +3,20 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from mpl_toolkits import mplot3d
 from mpl_toolkits.mplot3d import Axes3D
-from class_method import *
+from simulator_particle_core import *
 from matplotlib.animation import FuncAnimation
 from matplotlib.animation import PillowWriter
 
-p1 = Particle(10, [-1,  -1], [0,  0], -1e-7)
-p2 = Particle(10, [ 1, 1], [0, 0], -1e-7)
-p3 = Particle(10, [1, -1], [0, 0], -1e-7)
-p4 = Particle(10, [-1, 1], [0, 0], -1e-7)
-p5 = Particle(10, [0, 0], [0, 0], 1e-7)
-p6 = Particle(10, [-0.5, -0.5], [0, 0], 1e-7)
+
+
+#Attempting to Simulate the movement of multiple particles 
+#Including various charge magnitudes
+p1 = Particle(10, [-1,  -1], [0,  0], -1)
+p2 = Particle(10, [ 1, 1], [0, 0], -1)
+p3 = Particle(10, [1, -1], [0, 0], -1)
+p4 = Particle(10, [-1, 1], [0, 0], -1)
+p5 = Particle(10, [0, 0], [0, 0], 1)
+p6 = Particle(1e11, [-100, 0], [10, 0], 10)
 p7 = Particle(10, [0.5, 0.5], [0, 0], 1e-7)
 p8 = Particle(10, [0.5, -0.5], [0, 0], 1e-7)
 p9 = Particle(10, [-0.5, 0.5], [0, 0], 1e-7)
@@ -24,8 +28,7 @@ p14 = Particle(10, [-10, 0], [1, 0], 1)
 p15 = Particle(10, [10, 0], [-1, 0])
 p16 = Particle(10, [0, 10], [0, -1], 1)
 
-
-Simulate(3000, [p1,p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15])
+Simulate(6000, [p1,p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16])
 
 fig, ax  = plt.subplots()
 
@@ -50,7 +53,7 @@ scat12 = ax.scatter(part_dictionary_x[11][0], part_dictionary_y[11][0], c='blue'
 scat13 = ax.scatter(part_dictionary_x[12][0], part_dictionary_y[12][0], c='blue', s=20, label='particle5' )
 scat14 = ax.scatter(part_dictionary_x[13][0], part_dictionary_y[13][0], c='white', s=20, label='particle14')
 scat15 = ax.scatter(part_dictionary_x[14][0], part_dictionary_y[14][0], c='white', s=20, label='particle14')
-
+scat16 = ax.scatter(part_dictionary_x[15][0], part_dictionary_y[15][0], c='white', s=20, label='particle')
 def update(frame):
     x = part_dictionary_x[0][frame]
     y = part_dictionary_y[0][frame]
@@ -149,8 +152,9 @@ def update(frame):
     data16 = np.stack([x16, y16]).T
     scat16.set_offsets(data16)
 
-    return scat, scat2, scat3, scat4, scat5, scat6, scat7, scat8, scat9, scat10, scat11, scat12, scat13, scat14, scat15
+
+    return scat, scat2, scat3, scat4, scat5, scat6, scat7, scat8, scat9, scat10, scat11, scat12, scat13, scat14, scat15, scat16
 
 
-ani = animation.FuncAnimation(fig=fig, func=update, frames=3000, interval=30)
+ani = animation.FuncAnimation(fig=fig, func=update, frames=6000, interval=30)
 plt.show()

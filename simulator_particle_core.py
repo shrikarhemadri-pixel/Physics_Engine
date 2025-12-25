@@ -11,9 +11,8 @@ from matplotlib.animation import PillowWriter
 """Constants used often for the program"""
 G = 6.67430e-11 #N*m^2/kg^2
 k = 9e9 #N*m^2/C^2
-seconds_per_day = 86400
-dt = seconds_per_day/864000 #s
-dt = 0.01
+seconds_per_day = 86400 #s 
+dt = 0.00001 #s it is advisable to increase or decrease dt based on the system attempting to be simulated
 earth_radius = 6378137 #meters
 earth_mass = 5.9722e24 #kg 
 moon_mass = 7.3e22 #kg
@@ -25,8 +24,7 @@ velocity_x = {} #nested list for storing particle velocities- x
 velocity_y = {} #nested list for storing particle velocities- y
 new_particles = {}
 c = 2.998e8 #m/s
-SCREEN_WIDTH = 1280
-SCREEN_HEIGHT = 720
+
 #Make a custom class with a Particle with attributes, mass, velocity, and position
 class Particle:
     def __init__(self, mass=0., position=[0.,0.], velocity=[0.,0.], charge=0., volume=0., radius=0.):
@@ -50,17 +48,6 @@ class Particle:
         return 0.5*self.mass*speed**2
     def momentum(self):
         return self.mass * self.velocity
-
-
-""" Wall Class"""
-
-class Wall:
-    def __init__(self, startpoint, endpoint, dampening=1):
-        self.startpoint = startpoint
-        self.endpoint = endpoint
-        self.dampening = dampening
-
-
 
 
 
@@ -127,10 +114,6 @@ def netAcceleration(particle_list, index):
 Updating previous methods/attributes
 """
 
-
-
-
-
 acceleration_plot = {}
 
 def update_attributes(total_system, time_step=dt):
@@ -174,11 +157,11 @@ def quadraticFunction(acc_1, acc_2, initial_velocity_1, initial_velocity_2, init
 """The collision function that makes an elastic collision- updating the position and velocity of the particles using momentum rather than acceleration """
 def collision(p1, p2, timestep):
     #Formula for perfectly elastic collisions- the vectors of the velocity basically reverse
-    p1.velocity[0] = -((p1.mass-p2.mass)*p1.velocity[0]+2*p2.mass*p2.velocity[0])/(p1.mass+p2.mass)
-    p1.velocity[1] = -((p1.mass-p2.mass)*p1.velocity[1]+2*p2.mass*p2.velocity[1])/(p1.mass+p2.mass)
+    p1.velocity[0] = ((p1.mass-p2.mass)*p1.velocity[0]+2*p2.mass*p2.velocity[0])/(p1.mass+p2.mass)
+    p1.velocity[1] = ((p1.mass-p2.mass)*p1.velocity[1]+2*p2.mass*p2.velocity[1])/(p1.mass+p2.mass)
 
-    p2.velocity[0] = ((p2.mass-p1.mass)*p2.velocity[0]+2*p1.mass*p1.velocity[0])/(p1.mass+p2.mass)
-    p2.velocity[1] = ((p2.mass-p1.mass)*p2.velocity[1]+2*p1.mass*p1.velocity[1])/(p1.mass+p2.mass)
+    p2.velocity[0] = -((p2.mass-p1.mass)*p2.velocity[0]+2*p1.mass*p1.velocity[0])/(p1.mass+p2.mass)
+    p2.velocity[1] = -((p2.mass-p1.mass)*p2.velocity[1]+2*p1.mass*p1.velocity[1])/(p1.mass+p2.mass)
 
     #Updating the positions based on said velocity
     p1.position += p1.velocity*timestep
@@ -268,7 +251,7 @@ def Simulate(iterations, total_system=list):
         update_attributes(total_system)
         
         for item in range(len(total_system)):
-            #Appending all of the 
+            #Appending all of the attributes to lists to store the values and use them for plots and animations
             part_dictionary_x[item].append(total_system[item].position[0])
             part_dictionary_y[item].append(total_system[item].position[1])
             velocity_x[item].append(total_system[item].velocity[0])
@@ -276,39 +259,7 @@ def Simulate(iterations, total_system=list):
         time_t+=dt
         
     
-    # t = np.linspace(0, dt*iterations, iterations)
-    # # plt.scatter(t, acceleration_plot[0], label="Acceleration")
-    # # plt.xlabel("Time (s)")
-    # # plt.ylabel("Acceleration (m/s^2)")
-    # # plt.title("Acceleration vs time graph of particle 1")
-    # # plt.legend()
-    # # plt.show()
-
-    # plt.scatter(t, part_dictionary_x[0][0:iterations], label="Part 1")
-    # plt.scatter(t, part_dictionary_x[1][0:iterations], label = "Part 2")
-    
-    # # plt.quiver(part_dictionary_x[0][:-1], part_dictionary_y[0][:-1], np.diff(part_dictionary_x[0]), np.diff(part_dictionary_y[0]), angles='xy', scale_units='xy', scale=1)
-    # # plt.scatter(part_dictionary_x[1], part_dictionary_y[1], label="Part 2")
-    # # plt.quiver(part_dictionary_x[1][:-1], part_dictionary_y[1][:-1], np.diff(part_dictionary_x[1]), np.diff(part_dictionary_y[1]), angles='xy', scale_units='xy', scale=1)
-    # plt.xlabel("T (in s)")
-    # plt.ylabel("X (in m)")
-    # plt.title("+ve charge trajectory")
-    # plt.legend()
-    # plt.show()
-
-    # plt.scatter(np.linspace(0, dt*iterations, iterations+1),velocity_x[0], label="Part 1")
-    # plt.xlabel(" time (s)")
-    # plt.ylabel(" X (in m/s)")
-    # plt.title("-ve +ve charge velocity")
-    # plt.scatter(np.linspace(0, dt*iterations, iterations+1),velocity_x[1], label="Part 2")
-    # plt.legend()
-    # plt.show()
-    # plt.scatter(np.diff(velocity_x[0])/dt, np.diff(velocity_y[0])/dt, label="Part 1")
-    # plt.quiver((np.diff(velocity_x[0])/dt)[:-1], (np.diff(velocity_x[0])/dt)[:-1], np.diff((np.diff(velocity_x[0])/dt)[:-1]), np.diff((np.diff(velocity_x[0])/dt)[:-1]), angles='xy', scale_units='xy', scale=1)
-    # plt.xlabel("X (in m/s)")
-    # plt.ylabel("Y (in m/s)")
-    # plt.title("-ve +ve charge trajectory")
-    # plt.show()
+ 
 
 
 
