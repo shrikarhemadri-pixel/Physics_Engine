@@ -10,9 +10,10 @@ from matplotlib.animation import PillowWriter
 """ Particle Simulator: Simulates the motion of Particles using gravitational and electrostatic forces"""
 """Constants used often for the program"""
 G = 6.67430e-11 #N*m^2/kg^2
+G = 1
 k = 9e9 #N*m^2/C^2
 seconds_per_day = 86400 #s 
-dt = 0.00001 #s it is advisable to increase or decrease dt based on the system attempting to be simulated
+dt = 0.001 #s it is advisable to increase or decrease dt based on the system attempting to be simulated
 earth_radius = 6378137 #meters
 earth_mass = 5.9722e24 #kg 
 moon_mass = 7.3e22 #kg
@@ -35,12 +36,23 @@ class Particle:
         self.volume = volume #
         self.radius  = radius
 
-    #Calculate Kinetic Energy of the Particle
     """ 
     The first initialization method was to give attributes that a basic particle may have
     Mass, Position, and Velocity
     """
+    #Copy constructor
+    def copy(self):
+        return Particle(
+            mass=self.mass,
+            position=self.position.copy(),
+            velocity=self.velocity.copy(),
+            charge=self.charge,
+            volume=self.volume,
+            radius=self.radius
+        )
 
+
+    #Calculate Kinetic Energy of the Particle
     def kineticEnergy(self):
         #By using the instance mehtod, convert the velocity vector into a magnitude value
         #the kinetic energy accesses the static method to calculate the total kinetic energy
@@ -48,7 +60,11 @@ class Particle:
         return 0.5*self.mass*speed**2
     def momentum(self):
         return self.mass * self.velocity
-
+    
+    def positionX(self):
+        return self.position[0]
+    def positionY(self):
+        return self.position[1]
 
 
 
@@ -63,9 +79,27 @@ Calculating Distance
 
 
 def Distance(p1, p2):
-    #Calculate the distance as a vector and magnitude of the to particles positions
+    #Calculate the distance as a vector and magnitude of the to particles positions 
+    epsilon = 1e-3
     return np.sqrt((p1.position[0]-p2.position[0])**2 + (p1.position[1]-p2.position[1])**2), (p2.position - p1.position)
 
+
+def total_energy(partList):
+    KE = 0  # Kinetic energy
+    PE = 0  # Potential energy
+    
+    # Kinetic energy
+    for p in partList:
+        KE += 0.5 * p.mass * np.dot(p.velocity, p.velocity)
+    
+    # Potential energy
+    for i in range(len(partList)):
+        for j in range(i+1, len(partList)):
+            r = partList[i].position - partList[j].position
+            dist = np.linalg.norm(r)
+            PE += -G * partList[i].mass * partList[j].mass / dist
+    
+    return KE + PE
 
 """Calculating Force
 """
@@ -92,9 +126,9 @@ def cForce(p1, p2):
 def netForce(particle_list, index):
     f = np.array([0., 0.])
     for i in range(len(particle_list)):
-        if i == index:
-            continue
-        f +=  (gForce(particle_list[index], particle_list[i]) 
+        if i != index:
+            
+            f +=  (gForce(particle_list[index], particle_list[i]) 
                     -cForce(particle_list[index], particle_list[i]))
 
     return f
@@ -110,6 +144,87 @@ def netAcceleration(particle_list, index):
     force_mag = np.linalg.norm(force_vector)
     return force_vector/particle_list[index].mass
 
+
+"""
+Implementing a Runge Kutta 4th degree method of numerical integration into the system
+"""
+def rk4_accel(partList, timeStep):
+    #Rates of Changes of the position ------Velocity
+    k1x = [None]*len(partList)
+    k2x = [None]*len(partList)
+    k3x = [None]*len(partList)
+    k4x = [None]*len(partList)
+
+    #Rates of Changes of the velocities ---------Acceleration
+    k1v = [None]*len(partList)
+    k2v = [None]*len(partList)
+    k3v = [None]*len(partList)
+    k4v = [None]*len(partList)
+
+
+    #Final Rates of Changes of the positions and velocities
+    rk4x =  [None]*len(partList)
+    rk4v =  [None]*len(partList)
+
+
+    #Making copies of the particles
+    partList2 = [None] * len(partList)
+    for x in range(len(partList)):
+        partList2[x] = partList[x].copy()
+    # ---------------------
+    #Computing k1x and k1v
+    for i in range(len(partList)):
+        k1x[i] = partList[i].velocity.copy()
+        k1v[i] = netAcceleration(partList, i)
+
+    # ---------------------
+    #Computing k2x and k2v
+
+    #Storing the inital Conditions of each particle
+    p0 = [None]*len(partList)
+    v0 = [None]*len(partList)
+
+    for k in range(len(partList)):
+
+        p0[k] = partList[k].position.copy()
+        v0[k] = partList[k].velocity.copy()
+
+    #Calculating for k2x and k2v 
+    for a in range(len(partList)):
+        partList2[a].position = p0[a] +  k1x[a]* (timeStep/2)
+        partList2[a].velocity = v0[a] + k1v[a]* (timeStep/2)
+
+    for b in range(len(partList)):
+        k2x[b] = partList2[b].velocity
+        k2v[b] = netAcceleration(partList2, b)
+
+    #Calculating for k3x and k3v 
+    for c in range(len(partList)):
+        partList2[c].position = p0[c] +  k2x[c] * (timeStep/2)
+        partList2[c].velocity = v0[c] + k2v[c] * (timeStep/2)
+
+    for d in range(len(partList)):
+        k3x[d] = partList2[d].velocity
+        k3v[d] = netAcceleration(partList2, d)
+
+    
+    #Calculating for k4x and k4v
+    for e in range(len(partList)):
+        partList2[e].position = p0[e] +  k3x[e] * (timeStep)
+        partList2[e].velocity = v0[e] + k3v[e] * (timeStep)
+
+    for f in range(len(partList)):
+        k4x[f] = partList2[f].velocity
+        k4v[f] = netAcceleration(partList2, f)
+
+        
+    for z in range(len(partList)):
+        rk4x[z] = (k1x[z] + 2 * k2x[z] + 2 * k3x[z] + k4x[z])/6
+        rk4v[z] = (k1v[z] + 2 * k2v[z] + 2 * k3v[z] + k4v[z])/6
+        
+    return rk4x, rk4v
+
+
 """
 Updating previous methods/attributes
 """
@@ -120,15 +235,29 @@ def update_attributes(total_system, time_step=dt):
     #Using Kinematic formulas, updating velocity, and position of the system, and then 
     #Use step counts to update the position, velocity, and acceleration of the system
     acceleration_list = []
+ 
     for i in range(len(total_system)):
         acceleration_list.append(netAcceleration(total_system, i))
-        acceleration_plot[i].append(netAcceleration(total_system, i)[0])
+
+    rk4x, rk4v = rk4_accel(total_system, time_step)
+
     for k in range(len(acceleration_list)):
-        total_system[k].position += total_system[k].velocity*time_step + 0.5*(acceleration_list[k])*(time_step**2.0)
-        total_system[k].velocity += acceleration_list[k]*time_step
         
-    if np.linalg.norm(total_system[i].velocity) >= c:
-        total_system[i].velocity = c * 0.99
+        v = total_system[k].velocity.copy()
+        p = total_system[k].position.copy()
+
+        total_system[k].velocity = v +  rk4v[k] * (time_step)
+        total_system[k].position = p + rk4x[k] * (time_step)
+        
+
+
+
+
+
+
+        
+        
+
 
 """Quadratic Function used to develop a path of intersection per each timestep"""
 def quadraticFunction(acc_1, acc_2, initial_velocity_1, initial_velocity_2, initial_position_1, initial_position_2, t_initial):
@@ -190,7 +319,7 @@ def makeLists(num_particles):
 
         acceleration_plot[i] = []
 
-
+ 
 
 
 def Simulate(iterations, total_system=list):
@@ -201,6 +330,9 @@ def Simulate(iterations, total_system=list):
             part_dictionary_y[k].append(total_system[k].position[1])
             velocity_x[k].append(total_system[k].position[0])
             velocity_y[k].append(total_system[k].position[1])
+            for l in range(len(total_system)):
+                if k != l:
+                    print(f"the distance between {k} and {l} is {Distance(total_system[k], total_system[l])}")
 
 
     for iter in range(iterations):
@@ -249,7 +381,8 @@ def Simulate(iterations, total_system=list):
 
 
         update_attributes(total_system)
-        
+
+        print(total_energy(total_system))
         for item in range(len(total_system)):
             #Appending all of the attributes to lists to store the values and use them for plots and animations
             part_dictionary_x[item].append(total_system[item].position[0])

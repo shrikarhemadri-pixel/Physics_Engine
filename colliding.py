@@ -7,18 +7,18 @@ from matplotlib.animation import PillowWriter
 
 
 #Attempting to simulate 2 colliding particles moving towards each other
-p1 = Particle(1e3, [-1e1, 0], [1e5, 0], -1e-6)
-p2 = Particle(1e3, [1e1, 0], [-1e5, 0], 1e-6)
+p1 = Particle(1, [-1, 0], [0.5, 0])
+p2 = Particle(1, [1, 0], [-0.5, 0])
 
 #Simulate method found in the class_method files 
-Simulate(400000, [p1, p2])
+Simulate(4000, [p1, p2])
 
 # Basic Matplotlib Animations to help with visualization
 fig, ax = plt.subplots()
 fig.set_facecolor('black')
 ax.set_facecolor('black')
 scat1 = ax.scatter(part_dictionary_x[0][0], part_dictionary_y[0][0], c='b', s=20, label='particle1')
-scat2 = ax.scatter(part_dictionary_x[1][0], part_dictionary_y[1][0], c='b', s=20, label='particle2')
+scat2 = ax.scatter(part_dictionary_x[1][0], part_dictionary_y[1][0], c='white', s=20, label='particle2')
 
 
 """Frame increment function- currently working on putting it in the "simulator_particle_core" file to 
@@ -41,6 +41,6 @@ def update(frame):
     return scat1, scat2
 
 
-ani = animation.FuncAnimation(fig=fig, func=update, frames=400000, interval=10, blit=False)
+ani = animation.FuncAnimation(fig=fig, func=update, frames=4000, interval=1, blit=False)
 
 plt.show()
