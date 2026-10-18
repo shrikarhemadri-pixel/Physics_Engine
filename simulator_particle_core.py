@@ -6,6 +6,7 @@ import random
 import math
 import matplotlib.animation as animation
 from matplotlib.animation import PillowWriter
+import copy
 
 """ Particle Simulator: Simulates the motion of Particles using gravitational and electrostatic forces"""
 """Constants used often for the program"""
@@ -28,13 +29,14 @@ c = 2.998e8 #m/s
 
 #Make a custom class with a Particle with attributes, mass, velocity, and position
 class Particle:
-    def __init__(self, mass=0., position=[0.,0.], velocity=[0.,0.], charge=0., volume=0., radius=0.):
+    def __init__(self, mass=0., position=[0.,0.], velocity=[0.,0.], charge=0., volume=0., radius=0., cell=[0, 0]):
         self.mass = mass #in kg
         self.position = np.array(position, dtype=float) #in m
         self.velocity = np.array(velocity, dtype=float) #in m/s
         self.charge = charge #in coulumbs
         self.volume = volume #
         self.radius  = radius
+        self.cell = cell
 
     """ 
     The first initialization method was to give attributes that a basic particle may have
@@ -81,7 +83,7 @@ Calculating Distance
 def Distance(p1, p2):
     #Calculate the distance as a vector and magnitude of the to particles positions 
     epsilon = 1e-3
-    return np.sqrt((p1.position[0]-p2.position[0])**2 + (p1.position[1]-p2.position[1])**2), (p2.position - p1.position)
+    return np.sqrt((p1.position[0]-p2.position[0])**2 + (p1.position[1]-p2.position[1])**2 + epsilon**2), (p2.position - p1.position)
 
 
 def total_energy(partList):
@@ -95,11 +97,15 @@ def total_energy(partList):
     # Potential energy
     for i in range(len(partList)):
         for j in range(i+1, len(partList)):
-            r = partList[i].position - partList[j].position
-            dist = np.linalg.norm(r)
+            dist, r = Distance(partList[i], partList[j])
             PE += -G * partList[i].mass * partList[j].mass / dist
     
     return KE + PE
+def kineticEnergy(partList):
+    KE = 0 
+    for p in partList:
+        KE += 0.5 * p.mass * np.dot(p.velocity, p.velocity)
+    return KE
 
 """Calculating Force
 """
@@ -144,6 +150,54 @@ def netAcceleration(particle_list, index):
     force_mag = np.linalg.norm(force_vector)
     return force_vector/particle_list[index].mass
 
+def detect_and_resolve_collisions(total_system, timestep):
+    """
+    Leapfrog-compatible collision detection and resolution.
+    
+    Called AFTER the drift (position update) step, BEFORE the second half-kick.
+    Detects overlapping particles by radius, resolves them with elastic collision
+    physics, and separates them to prevent tunneling on the next step.
+    
+    Pairs each particle against every other exactly once (i < j guard).
+    """
+    n = len(total_system)
+    
+    for i in range(n):
+        for j in range(i + 1, n):
+            p1 = total_system[i]
+            p2 = total_system[j]
+
+            # --- Collision threshold ---
+            # Use sum of radii if defined, else fall back to a softening length
+            collision_dist = (p1.radius + p2.radius) if (p1.radius > 0 and p2.radius > 0) else 1e-2
+
+            # --- Distance between particles ---
+            delta = p2.position - p1.position          # displacement vector p1 -> p2
+            dist  = np.linalg.norm(delta)
+
+            if dist < collision_dist:
+                # ---- 1. Elastic velocity exchange along collision normal ----
+                normal = delta / (dist + 1e-12)        # unit vector along line of centers
+                rel_vel = p1.velocity - p2.velocity    # relative velocity
+
+                # Only resolve if particles are approaching (dot product < 0)
+                approach_speed = np.dot(rel_vel, normal)
+                if approach_speed <= 0:
+                    continue
+
+                # 1D elastic collision impulse projected onto normal
+                impulse = (2 * approach_speed) / (p1.mass + p2.mass)
+
+                p1.velocity -= impulse * p2.mass * normal
+                p2.velocity += impulse * p1.mass * normal
+
+                # ---- 2. Positional correction (prevent overlap / tunneling) ----
+                # Push the particles apart so they no longer overlap
+                overlap   = collision_dist - dist
+                correction = normal * (overlap / 2.0)
+
+                p1.position -= correction
+                p2.position += correction
 
 """
 Implementing a Runge Kutta 4th degree method of numerical integration into the system
@@ -225,6 +279,148 @@ def rk4_accel(partList, timeStep):
     return rk4x, rk4v
 
 
+def leapFrog(partList, timeStep, accelList):
+    #Compute the accelerations for all particles
+    for i in range(len(partList)):
+        accelList[i] = (netAcceleration(partList, i))
+
+    #Half kick velocities
+    for a in range(len(partList)):
+        partList[a].velocity += accelList[a] * timeStep/2
+
+    #Full Drift Positions
+    for b in range(len(partList)):
+        partList[b].position += partList[b].velocity * timeStep
+    detect_and_resolve_collisions(partList, timeStep)
+    #Calculate accelerations at new positions
+    for c in range(len(partList)):
+        accelList[c] = netAcceleration(partList, c)
+    
+
+    #Half kick velocities 
+    for d in range(len(partList)):
+        partList[d].velocity += accelList[d] * timeStep/2
+
+
+def yoshida4(partList, timeStep, accelList):
+    w1 = 1 / (2 - 2**(1/3))
+    w0 = -2**(1/3) / (2 - 2**(1/3))
+
+    leapFrog(partList, w1 * timeStep, accelList)
+    leapFrog(partList, w0 * timeStep, accelList)
+    leapFrog(partList, w1 * timeStep, accelList)
+
+def burlischStoer2(H, accel_list, partlist,n=[2, 4, 6, 8, 10, 12] ):
+    for a in range(len(n)):
+        h = H/n[a]
+        Pos_i_2 = [None] * len(partlist)
+        Pos_i = [None] * len(partlist)
+        Vel_i_2 = [None] * len(partlist)
+        Vel_i = [None] * len(partlist)
+        
+        #Gathering Accelerations
+        for x in range(len(partlist)):
+            accel_list[x] = netAcceleration(partlist, x)
+        #Euler Step 
+        for i in range(len(partlist)):
+            #Euluer Step for the positions
+            Pos_i_2[i] = partlist[i].position.copy()
+            partlist[i].position += h * partlist[i].velocity
+            Pos_i[i] = partlist[i].position.copy()
+
+            #Euler step for the velocities
+            Vel_i_2[i] = partlist[i].velocity.copy()
+            partlist[i].velocity += h * accel_list[i]
+            Vel_i[i] = partlist[i].velocity.copy()
+        for r in range(len(partlist)):
+            accel_list[r] = netAcceleration(partlist, r)
+        #Main iterative loop 
+        for b in range(1, n[a]):
+            for c in range(len(partlist)):
+                #Modified Midpoint for the positions
+                pos_next = Pos_i_2[c] + 2 * h * Vel_i[c]
+                Pos_i_2[c] = Pos_i[c].copy()
+                Pos_i[c] = pos_next
+                
+               
+                #Modified Midpoint for the velocities
+                vel_next = Vel_i_2[c] + 2 * h * accel_list[c]
+                Vel_i_2[c] = Vel_i[c].copy()
+                Vel_i[c] = vel_next
+                
+            for y in range(len(partlist)):
+                partlist[y].position = Pos_i[y]
+                partlist[y].velocity = Vel_i[y]
+
+            for x in range(len(partlist)):    
+                #Update Accelerations
+                accel_list[x] = netAcceleration(partlist, x)
+        
+        #Final Position/Velocity vectors
+        for t in range(len(partlist)):
+            x_final = 0.5 * (Pos_i[t] + Pos_i_2[t] + h * Vel_i[t])
+            v_final = 0.5 * (Vel_i[t] + Vel_i_2[t] + h * accel_list[t])
+
+
+
+
+            partlist[t].velocity = v_final
+            partlist[t].position = x_final
+        #Richardson Extrapolation Step
+
+def richardsonExtrapolation(H, accel_list, partlist, n=[2, 4, 6, 8, 10, 12]):
+    
+    num_particles = len(partlist)
+    num_levels = len(n)
+
+    # Save original state
+    orig_pos = [p.position.copy() for p in partlist]
+    orig_vel = [p.velocity.copy() for p in partlist]
+
+    tableau_pos = [None] * num_levels
+    tableau_vel = [None] * num_levels
+
+    for a in range(num_levels):
+        # Reset to original state before each BS run
+        for i in range(num_particles):
+            partlist[i].position = orig_pos[i].copy()
+            partlist[i].velocity = orig_vel[i].copy()
+            accel_list[i] = netAcceleration(partlist, i)
+
+        # Run your original burlischStoer2 for a single n value
+        burlischStoer2(H, accel_list, partlist, n=[n[a]])
+
+        # Capture the result
+        tableau_pos[a] = [None] * num_levels
+        tableau_vel[a] = [None] * num_levels
+        tableau_pos[a][0] = [partlist[i].position.copy() for i in range(num_particles)]
+        tableau_vel[a][0] = [partlist[i].velocity.copy() for i in range(num_particles)]
+
+        # Richardson extrapolation across previous rows
+        for k in range(1, a + 1):
+            ratio_sq = (n[a] / n[a - k]) ** 2
+            denom = ratio_sq - 1.0
+
+            tableau_pos[a][k] = [None] * num_particles
+            tableau_vel[a][k] = [None] * num_particles
+
+            for p in range(num_particles):
+                tableau_pos[a][k][p] = (
+                    tableau_pos[a][k-1][p]
+                    + (tableau_pos[a][k-1][p] - tableau_pos[a-1][k-1][p]) / denom
+                )
+                tableau_vel[a][k][p] = (
+                    tableau_vel[a][k-1][p]
+                    + (tableau_vel[a][k-1][p] - tableau_vel[a-1][k-1][p]) / denom
+                )
+
+    # Write best estimate back to particles
+    best = num_levels - 1
+    for i in range(num_particles):
+        partlist[i].position = tableau_pos[best][best][i].copy()
+        partlist[i].velocity = tableau_vel[best][best][i].copy()
+        accel_list[i] = netAcceleration(partlist, i)
+
 """
 Updating previous methods/attributes
 """
@@ -248,8 +444,24 @@ def update_attributes(total_system, time_step=dt):
 
         total_system[k].velocity = v +  rk4v[k] * (time_step)
         total_system[k].position = p + rk4x[k] * (time_step)
-        
 
+def update_attributes2(total_system, time_step=dt):
+    acceleration_list = [None] * len(total_system)
+    
+    leapFrog(total_system,time_step, acceleration_list)
+        
+def update_attributes3(total_system, time_step=dt):
+    acceleration_list = [None] * len(total_system)
+    
+    yoshida4(total_system, time_step, acceleration_list)
+
+def update_attributes4(total_system, time_step=dt):
+    acceleration_list = []
+    for i in range(len(total_system)):
+        acceleration_list.append(netAcceleration(total_system, i))
+    richardsonExtrapolation(dt, acceleration_list, total_system)
+
+        
 
 
 
@@ -283,6 +495,7 @@ def quadraticFunction(acc_1, acc_2, initial_velocity_1, initial_velocity_2, init
         return sol2
     else:
         return -1
+
 """The collision function that makes an elastic collision- updating the position and velocity of the particles using momentum rather than acceleration """
 def collision(p1, p2, timestep):
     #Formula for perfectly elastic collisions- the vectors of the velocity basically reverse
@@ -321,7 +534,8 @@ def makeLists(num_particles):
 
  
 
-
+energyList = []
+keList = []
 def Simulate(iterations, total_system=list):
     makeLists(len(total_system))
     # Storing initial positions of all particles
@@ -330,59 +544,15 @@ def Simulate(iterations, total_system=list):
             part_dictionary_y[k].append(total_system[k].position[1])
             velocity_x[k].append(total_system[k].position[0])
             velocity_y[k].append(total_system[k].position[1])
-            for l in range(len(total_system)):
-                if k != l:
-                    print(f"the distance between {k} and {l} is {Distance(total_system[k], total_system[l])}")
-
 
     for iter in range(iterations):
         x_collision_time = 0
         y_collision_time = 0
         time_t = 0
-        #Checking for intersections/collisions
-        for i in range(len(total_system)):
-            #Recieving initial accelerations of the first particle
-            accel_1 = netAcceleration(total_system, i)
-            #Beginning of the nested for loop- The loop checks each particle against all of the other particles involved in the system
-            for k in range(len(total_system)):
-                if i != k and k > i: #Making sure that the particle isn't checked against itself and that it isn't checked twice
-                    #Recieving initial accelerations of the second particle
-                    accel_2 = netAcceleration(total_system, k)
-                    #the collision solution of the x coordinate and y coordinate
-                    x_collision_time = quadraticFunction(accel_1[0], accel_2[0], total_system[i].velocity[0], total_system[k].velocity[0], total_system[i].position[0], total_system[k].position[0], time_t)
-                    y_collision_time = quadraticFunction(accel_1[1], accel_2[1], total_system[i].velocity[1], total_system[k].velocity[1], total_system[i].position[1], total_system[k].position[1], time_t)
-                    #Making sure that the time that the x coordinates intersect and the time that the y coordinates intersect are equal to each other
-                    if ((x_collision_time == y_collision_time) and (y_collision_time != -1)) or (y_collision_time == "constant" and x_collision_time != -1) or (x_collision_time == "constant" and y_collision_time != -1):
-                        #System updates the attributes of the system (moving the particle) at the timestep at the time that the particles collide with each other
-                        #The particle should be at the same position now
-                        collision_time = x_collision_time
-                        if x_collision_time == "constant":
-                            collision_time = y_collision_time
-                        
-                        update_attributes(total_system, collision_time)
-                        print(f'{i} collides with {k} there is a collision at {collision_time} seconds at {total_system[i].position} with a velocity of {total_system[i].velocity}')
-                        print(f'time_t is equal to {time_t}')
-                        #collision function is implemented- The velocities of the particle changes elastically
-                        collision(total_system[i], total_system[k], (dt-collision_time))
-                        print(f'the velocity of {i} is {total_system[i].velocity} and the position of {i} is {total_system[i].position}')
-                        print(f'the velocity of {k} is {total_system[k].velocity} and the position of {k} is {total_system[k].position}')
-                        part_dictionary_x[i].append(total_system[i].position[0])
-                        part_dictionary_y[i].append(total_system[i].position[1])
-                        velocity_x[i].append(total_system[i].velocity[0])
-                        velocity_y[i].append(total_system[i].velocity[1])
-                        part_dictionary_x[k].append(total_system[k].position[0])
-                        part_dictionary_y[k].append(total_system[k].position[1])
-                        velocity_x[k].append(total_system[k].velocity[0])
-                        velocity_y[k].append(total_system[k].velocity[1])
-                    
-                   
-                        
+        energyList.append(total_energy(total_system))
+        keList.append(kineticEnergy(total_system))
+        update_attributes2(total_system)
 
-
-
-        update_attributes(total_system)
-
-        print(total_energy(total_system))
         for item in range(len(total_system)):
             #Appending all of the attributes to lists to store the values and use them for plots and animations
             part_dictionary_x[item].append(total_system[item].position[0])
@@ -390,12 +560,18 @@ def Simulate(iterations, total_system=list):
             velocity_x[item].append(total_system[item].velocity[0])
             velocity_y[item].append(total_system[item].velocity[1])
         time_t+=dt
-        
+    # print(f"the first value is {energyList[0]}")    
+    # print(f"The last value is {energyList[len(energyList) - 1]}")
+    print(f"the first kinetic energy value is {keList[0]}")
+    print(f"the last kiinetic energy value is {keList[len(energyList)-1]}")
+    print(f"The total energy of the system is {energyList[0]}")
     
  
-
-
-
+"""fluids: Start of Fluid Simulation classes
+"""
+class fluid: 
+    def __init__(self):
+        pass
 
 
 """
