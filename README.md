@@ -7,3 +7,20 @@ Fluid (SPH):
 A 2D fluid built with smoothed-particle hydrodynamics, where each particle feels pressure and viscosity from its neighbors. You can push and pull the fluid with the mouse. This is the starting point for a model of blood flow through an artery narrowed by plaque (atherosclerosis), and it's still in progress.
 N-Body:
 Particles interacting through gravity and electric charge. It includes several numerical integrators so their accuracy can be compared on the three-body problem, along with energy tracking, plots and animations.
+
+
+
+https://github.com/user-attachments/assets/69c49864-61c6-4007-9916-ac13ac588fdc
+
+
+
+https://github.com/user-attachments/assets/f7dc5fbb-ee5e-43b2-a7e3-1d3e51d1581b
+
+
+
+https://github.com/user-attachments/assets/c7a46a87-948b-401d-b9e6-c8d2cb408c64
+
+
+
+
+
